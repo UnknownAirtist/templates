@@ -1,0 +1,98 @@
+name: POC Workflow Run B (Executes PR Code)
+on:
+  workflow_run:
+    workflows: ["POC PR Workflow A (Creates Artifact)"] # Должен совпадать с name из Workflow A
+    types: [completed]
+
+permissions:
+  actions: read # Для скачивания артефактов
+  contents: write # Для checkout в path (если нужно) и потенциально для pnpm
+  pull-requests: read
+
+env:
+  PR_ID_FILE: "_pr_id.txt"
+  PREVIEW_DIR: "_poc_preview_templates" # Уникальное имя директории
+
+jobs:
+  poc_exploit_job:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    env:
+      # Эти секреты НЕ будут доступны в форке, но мы демонстрируем, что workflow пытается их передать
+      DEMO_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+      DEMO_TEMPLATES_API_CLIENT_ID: ${{ secrets.TEMPLATES_API_CLIENT_ID_IN_FORK || 'fork_secret_not_available' }}
+
+    steps:
+      - name: Checkout Self (to get pnpm and local 'templates' tool if needed)
+        uses: actions/checkout@v4 # Checkout main branch of this repo (UnknownAirtist/templates)
+
+      # Установка pnpm, если он не установлен глобально в runner'е
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.2.0 # Версия из package.json
+
+      - name: Download PR ID artifact from Workflow A
+        uses: actions/download-artifact@v4
+        with:
+          name: poc_pr_id # Имя артефакта из Workflow A
+          github-token: ${{ secrets.GITHUB_TOKEN }} # Токен для скачивания артефакта
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Read PR ID from artifact
+        id: pr_info
+        shell: bash
+        run: |
+          pr_id_value=$(cat ${{ env.PR_ID_FILE }})
+          echo "PR_ID=${pr_id_value}" >> $GITHUB_ENV
+          echo "pr_id_output=${pr_id_value}" >> $GITHUB_OUTPUT
+
+
+      - name: "Get PR details (repo and ref)"
+        id: get_pr_details
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr_id = process.env.PR_ID;
+            if (!pr_id) {
+              core.setFailed("PR_ID environment variable not set.");
+              return;
+            }
+            console.log(`Fetching details for PR ID: ${pr_id}`);
+            try {
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner, // Owner of this forked repo
+                repo: context.repo.repo,   // This forked repo
+                pull_number: pr_id,
+              });
+              core.setOutput('pr_repo_full_name', pr.head.repo.full_name);
+              core.setOutput('pr_ref', pr.head.ref);
+              console.log(`PR Repo: ${pr.head.repo.full_name}, PR Ref: ${pr.head.ref}`);
+            } catch (error) {
+              core.setFailed(`Failed to get PR details: ${error.message}`);
+              // Log the actual error object for more details
+              console.error("Error fetching PR details:", error);
+
+            }
+              
+      - name: Checkout PR code into PREVIEW_DIR
+        if: steps.get_pr_details.outputs.pr_repo_full_name && steps.get_pr_details.outputs.pr_ref
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.get_pr_details.outputs.pr_repo_full_name }}
+          ref: ${{ steps.get_pr_details.outputs.pr_ref }}
+          path: ${{ env.PREVIEW_DIR }}
+          persist-credentials: "false"
+
+      - name: Run PoC 'preview' script on PR code
+        if: steps.get_pr_details.outputs.pr_repo_full_name && steps.get_pr_details.outputs.pr_ref
+        run: |
+          echo "Contents of ${{ env.PREVIEW_DIR }}:"
+          ls -la ${{ env.PREVIEW_DIR }}
+          echo "Running pnpm run preview in ${{ env.PREVIEW_DIR }}..."
+          cd ${{ env.PREVIEW_DIR }}
+          pnpm run preview 
+        env:
+          DEMO_GITHUB_TOKEN: ${{ env.DEMO_GITHUB_TOKEN }}
+          DEMO_TEMPLATES_API_CLIENT_ID: ${{ env.DEMO_TEMPLATES_API_CLIENT_ID }}
