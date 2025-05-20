@@ -1,0 +1,17 @@
+name: POC PR Workflow A (Creates Artifact)
+on:
+  pull_request:
+    types: [opened, synchronize]
+env:
+  PR_ID_FILE: "_pr_id.txt"
+jobs:
+  create_pr_artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save PR ID
+        run: echo "${{ github.event.number }}" > ${{ env.PR_ID_FILE }}
+      - name: Upload PR ID artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: poc_pr_id # Уникальное имя артефакта для PoC
+          path: ${{ env.PR_ID_FILE }}

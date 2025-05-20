@@ -1,0 +1,13 @@
+name: POC B Test Trigger
+on:
+  workflow_run:
+    workflows: ["POC PR Workflow A (Creates Artifact)"] # Убедитесь, что это имя ТОЧНОЕ
+    types: [completed]
+
+jobs:
+  simple_test_job:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Print success message
+        run: echo "POC Workflow B was triggered and ran successfully!"

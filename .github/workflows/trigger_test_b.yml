@@ -1,0 +1,18 @@
+# .github/workflows/trigger_test_b.yml
+name: Trigger Test Workflow B
+
+on:
+  workflow_run:
+    workflows: ["POC PR Workflow A (Creates Artifact)"]
+    types: [completed]
+  workflow_dispatch: {}   # временный ручной запуск для дебага
+
+jobs:
+  simple_test_job:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Announce trigger source
+        run: |
+          echo "🎉 Workflow B успешно запустился от события: ${{ github.event_name }}"
